@@ -102,7 +102,7 @@ class LEDManager:
         if not self.enabled:
             return
         logger.debug("LED rainbow animation started (mode)")
-        self._set_all(0, 0, 0, brightness=255, mode="rainbow", timing=500)
+        self._set_all(0, 0, 0, brightness=255, mode="rainbow", timing=100)
 
     def stop_animation(self):
         """Stop animation and turn off LEDs."""
