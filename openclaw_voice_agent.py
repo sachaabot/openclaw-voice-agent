@@ -46,10 +46,14 @@ class LEDManager:
             self.enabled = config["led"].get("enabled", True)
             self.led_index = config["led"].get("index", led_index)
             self.led_path = f"/sys/class/leds/pamir:led{self.led_index}/brightness"
+        
+        logger.info("LEDManager: enabled=%s, path=%s, exists=%s",
+                     self.enabled, self.led_path, os.path.exists(self.led_path))
 
     def set_color(self, brightness: int) -> bool:
         """Set LED brightness. Returns True if successful."""
         if not self.enabled:
+            logger.debug("LED disabled, skipping set_color(%d)", brightness)
             return True
         
         if not os.path.exists(self.led_path):
@@ -57,6 +61,7 @@ class LEDManager:
             self.enabled = False
             return False
         
+        logger.debug("Setting LED %s to %d", self.led_path, brightness)
         try:
             with open(self.led_path, "w") as f:
                 f.write(str(brightness))
@@ -514,6 +519,7 @@ class VoiceAgent:
         # 5. Play response (still green)
         logger.info("Playing response...")
         self.audio.play_audio(audio_data)
+        logger.info("Interaction complete.")
 
     def _handle_signal(self, signum, frame):
         logger.info("Received signal %d, shutting down...", signum)
