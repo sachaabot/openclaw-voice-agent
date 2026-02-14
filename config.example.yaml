@@ -32,6 +32,8 @@ audio:
   record_seconds: 5      # Max recording duration after wake word
   silence_threshold: 300  # RMS threshold for silence detection (lower = more sensitive)
   silence_duration: 2.0   # Seconds of silence before stopping capture
+  min_capture_seconds: 3.0  # Minimum recording time before silence detection kicks in
+                            # Prevents cutting off users who pause while thinking
 
 # Whisper transcription
 whisper:

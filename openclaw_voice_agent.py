@@ -135,6 +135,7 @@ class AudioManager:
         self.record_seconds = config["record_seconds"]
         self.silence_threshold = config["silence_threshold"]
         self.silence_duration = config["silence_duration"]
+        self.min_capture_seconds = config.get("min_capture_seconds", 3.0)
         self.pa = pyaudio.PyAudio()
 
     def read_frames(self, stream, count: int) -> bytes:
@@ -183,9 +184,9 @@ class AudioManager:
         max_chunks = int(self.record_seconds * chunks_per_second)
         silence_chunks_needed = int(self.silence_duration * chunks_per_second)
 
-        # Don't check for silence in the first 1.5 seconds (let user start speaking)
-        min_capture_seconds = 1.5
-        min_capture_chunks = int(min_capture_seconds * chunks_per_second)
+        # Don't check for silence until min_capture_seconds elapsed
+        # This prevents cutting off users who pause briefly while thinking
+        min_capture_chunks = int(self.min_capture_seconds * chunks_per_second)
 
         logger.info("Capturing speech...")
         try:
@@ -194,6 +195,12 @@ class AudioManager:
                 frames.append(mono_bytes)
                 rms = (sum(s * s for s in mono_samples) / len(mono_samples)) ** 0.5
 
+                # Log RMS every ~0.5s for debugging audio levels
+                if chunk_idx % max(1, int(chunks_per_second * 0.5)) == 0:
+                    elapsed = chunk_idx / chunks_per_second
+                    logger.debug("t=%.1fs rms=%.0f threshold=%d silent_chunks=%d",
+                                 elapsed, rms, self.silence_threshold, silent_chunks)
+
                 # Skip silence detection during minimum capture window
                 if chunk_idx < min_capture_chunks:
                     continue
@@ -201,8 +208,9 @@ class AudioManager:
                 if rms < self.silence_threshold:
                     silent_chunks += 1
                     if silent_chunks >= silence_chunks_needed:
-                        logger.debug("Silence detected after %.1fs, stopping capture",
-                                     chunk_idx / chunks_per_second)
+                        logger.info("Silence detected after %.1fs (%.1fs of silence), stopping capture",
+                                    chunk_idx / chunks_per_second,
+                                    silent_chunks / chunks_per_second)
                         break
                 else:
                     silent_chunks = 0
