@@ -45,11 +45,10 @@ whisper:
 # See: https://docs.openclaw.ai
 openclaw:
   base_url: "http://localhost:18789"  # Default OpenClaw Gateway port
-  session_key: "main"  # Session to send messages to (default: "main")
-  hook_token: ""  # Optional: webhook token for /hooks/agent endpoint
-                  # If set, enables HTTP-based message delivery
-                  # If not set, falls back to openclaw CLI (must be installed)
-  timeout: 30
+  agent_id: "main"       # Agent to route messages to (default: "main")
+  session_id: ""         # Optional: specific session ID (overrides agent_id)
+                         # Get from: openclaw sessions --json
+  timeout: 60            # Max seconds to wait for agent response
 
 # Text-to-speech
 tts:

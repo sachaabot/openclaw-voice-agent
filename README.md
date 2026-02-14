@@ -139,33 +139,9 @@ openclaw status
 openclaw sessions list
 ```
 
-**Enable Webhooks (Optional but Recommended):**
-
-To send voice messages to OpenClaw via HTTP webhooks, enable the hooks endpoint in `~/.openclaw/openclaw.json`:
-
-```json
-{
-  "hooks": {
-    "enabled": true,
-    "token": "your-secret-token-here",
-    "path": "/hooks"
-  }
-}
-```
-
-Then set `hook_token` in your voice agent `config.yaml`:
-
-```yaml
-openclaw:
-  hook_token: "your-secret-token-here"
-```
-
-If webhooks are not enabled, the voice agent falls back to using the `openclaw` CLI (must be in PATH).
-
 **Documentation:**
 - [OpenClaw Docs](https://docs.openclaw.ai)
 - [GitHub](https://github.com/openclaw/openclaw)
-- [Webhooks](https://docs.openclaw.ai/automation/webhooks)
 
 ## LED Feedback
 
@@ -195,8 +171,9 @@ See `config.example.yaml` for all options. Key settings:
 - `porcupine.access_key` - Free from [Picovoice Console](https://console.picovoice.ai/)
 - `whisper.api_key` - OpenAI API key
 - `openclaw.base_url` - Local Gateway URL (default: `http://localhost:18789`)
-- `openclaw.session_key` - Session to target (default: `main`); get from `openclaw sessions list`
-- `openclaw.hook_token` - Optional webhook token for HTTP-based delivery (enable in `~/.openclaw/openclaw.json`); if not set, uses `openclaw` CLI
+- `openclaw.agent_id` - Agent to route messages to (default: `main`)
+- `openclaw.session_id` - Optional specific session ID (overrides agent_id)
+- `openclaw.timeout` - Max seconds to wait for agent response (default: 60)
 - `tts.provider` - Choose `gtts`, `elevenlabs`, or `piper`
 - `audio.silence_threshold` - Adjust if it cuts off too early or waits too long
 
