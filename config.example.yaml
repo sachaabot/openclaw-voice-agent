@@ -1,0 +1,54 @@
+# OpenClaw Voice Agent Configuration
+
+# Porcupine wake word detection
+porcupine:
+  access_key: "YOUR_PICOVOICE_ACCESS_KEY"
+  # Built-in keywords: "porcupine", "bumblebee", "terminator", etc.
+  # For custom "hey openclaw", train at https://console.picovoice.ai/
+  # Use keyword_paths for custom .ppn files, or keywords for built-in ones.
+  keywords:
+    - "terminator"
+  # keyword_paths:
+  #   - "/path/to/hey-openclaw_en_raspberry-pi.ppn"
+  sensitivities:
+    - 0.6
+
+# Audio settings
+audio:
+  sample_rate: 16000
+  frame_length: 512      # Porcupine frame length (samples per read)
+  channels: 1
+  record_seconds: 5      # Max recording duration after wake word
+  silence_threshold: 500  # RMS threshold for silence detection
+  silence_duration: 1.5   # Seconds of silence before stopping capture
+
+# Whisper transcription
+whisper:
+  api_key: "YOUR_OPENAI_API_KEY"
+  model: "whisper-1"
+  language: "en"
+
+# OpenClaw session API
+openclaw:
+  base_url: "https://api.openclaw.com"
+  api_key: "YOUR_OPENCLAW_API_KEY"
+  session_id: "YOUR_SESSION_ID"
+  timeout: 30
+
+# Text-to-speech
+tts:
+  # Provider: "elevenlabs", "gtts", or "piper"
+  provider: "gtts"
+  elevenlabs:
+    api_key: "YOUR_ELEVENLABS_API_KEY"
+    voice_id: "21m00Tcm4TlvDq8ikWAM"  # Rachel
+    model_id: "eleven_monolingual_v1"
+  gtts:
+    lang: "en"
+    slow: false
+  piper:
+    model_path: "/path/to/piper-model.onnx"
+
+# Logging
+logging:
+  level: "INFO"  # DEBUG, INFO, WARNING, ERROR

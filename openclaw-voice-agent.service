@@ -1,0 +1,27 @@
+[Unit]
+Description=OpenClaw Voice Agent
+After=network-online.target sound.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=distiller
+Group=distiller
+WorkingDirectory=/home/distiller/Projects/openclaw-voice-agent
+Environment=OPENCLAW_CONFIG=/home/distiller/Projects/openclaw-voice-agent/config.yaml
+ExecStart=/opt/distiller-sdk/.venv/bin/python3 /home/distiller/Projects/openclaw-voice-agent/openclaw_voice_agent.py
+Restart=on-failure
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=openclaw-voice-agent
+
+# Hardening
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=read-only
+ReadWritePaths=/tmp
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target

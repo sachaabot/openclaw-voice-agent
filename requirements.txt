@@ -1,0 +1,7 @@
+pvporcupine>=3.0.0
+pyaudio>=0.2.14
+openai>=1.0.0
+requests>=2.31.0
+pyyaml>=6.0
+gtts>=2.5.0
+elevenlabs>=1.0.0
