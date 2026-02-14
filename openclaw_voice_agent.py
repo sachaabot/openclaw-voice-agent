@@ -255,7 +255,7 @@ class AudioManager:
                 if not converted:
                     try:
                         result = subprocess.run(
-                            ["sox", tmp_path, "-r", "16000", "-c", "1", wav_path],
+                            ["sox", tmp_path, "-r", "16000", "-c", "2", wav_path],
                             capture_output=True, timeout=10)
                         if result.returncode == 0:
                             converted = True
