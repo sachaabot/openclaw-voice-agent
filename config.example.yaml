@@ -29,7 +29,7 @@ audio:
   frame_length: 512      # Porcupine frame length (samples per read)
   channels: 1            # Output channels (always mono for transcription)
   hw_channels: 2         # Hardware mic channels (PamirAI requires 2; set to 1 for USB mics)
-  record_seconds: 5      # Max recording duration after wake word
+  record_seconds: 30     # Max recording duration (safety cap; silence detection stops it earlier)
   silence_threshold: 300  # RMS threshold for silence detection (lower = more sensitive)
   silence_duration: 2.0   # Seconds of silence before stopping capture
   min_capture_seconds: 3.0  # Minimum recording time before silence detection kicks in
