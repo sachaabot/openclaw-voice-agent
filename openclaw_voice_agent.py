@@ -59,13 +59,15 @@ class LEDManager:
             )
 
     def set_rgb(self, r: int, g: int, b: int):
-        """Set LED to specific RGB color."""
+        """Set LED to specific RGB color. Also sets brightness as master enable."""
         if not self.enabled:
             return
         logger.debug("LED rgb(%d, %d, %d)", r, g, b)
         self._write("red", r)
         self._write("green", g)
         self._write("blue", b)
+        # brightness acts as master switch — must be non-zero to see color
+        self._write("brightness", 255 if (r or g or b) else 0)
 
     def set_blue(self):
         """Blue: wake word detected, capturing audio."""
