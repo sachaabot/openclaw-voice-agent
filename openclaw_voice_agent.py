@@ -9,8 +9,6 @@ import signal
 import struct
 import sys
 import tempfile
-import math
-import threading
 import time
 import wave
 
@@ -25,25 +23,29 @@ logger = logging.getLogger("openclaw-voice-agent")
 
 class LEDManager:
     """Control PamirAI RGB LEDs via sysfs for user feedback.
-    
-    PamirAI LEDs have separate red/green/blue channels:
-      /sys/class/leds/pamir:led{N}/red
-      /sys/class/leds/pamir:led{N}/green
-      /sys/class/leds/pamir:led{N}/blue
+
+    Uses hardware-driven modes (static/fade/rainbow) for smooth animation
+    instead of software threads. This avoids choppiness and thread-leak bugs.
+
+    Sysfs layout per LED:
+      /sys/class/leds/pamir:led{N}/{red,green,blue,brightness,mode,timing}
+
+    Modes: static, blink, fade, rainbow
+    Timing: animation period in ms (default 500)
     """
 
     def __init__(self, config: dict = None):
         self.enabled = True
         self.led_count = 7  # PamirAI has LEDs 0-6
-        
+
         if config and "led" in config:
             self.enabled = config["led"].get("enabled", True)
             self.led_count = config["led"].get("count", 7)
-        
+
         self.led_bases = [f"/sys/class/leds/pamir:led{i}" for i in range(self.led_count)]
         logger.info("LEDManager: enabled=%s, leds=%d", self.enabled, self.led_count)
 
-    def _write(self, led_base: str, attr: str, value: int):
+    def _write(self, led_base: str, attr: str, value):
         """Write a value to an LED sysfs attribute."""
         path = f"{led_base}/{attr}"
         try:
@@ -56,64 +58,55 @@ class LEDManager:
                 timeout=2, capture_output=True,
             )
 
-    def set_rgb(self, r: int, g: int, b: int):
-        """Set ALL LEDs to specific RGB color."""
+    # Valid timing values supported by the SAM driver
+    VALID_TIMINGS = [100, 200, 500, 1000]
+
+    def _set_all(self, r: int, g: int, b: int, brightness: int = None,
+                 mode: str = "static", timing: int = None):
+        """Set all LEDs to given color, mode, and optional timing.
+
+        Write order matters for smooth transitions:
+        1. Set timing first (so driver has correct period before animating)
+        2. Set RGB color (so driver fades the intended color)
+        3. Set brightness
+        4. Set mode last (starts animation with correct color+timing)
+        """
         if not self.enabled:
             return
-        logger.debug("LED rgb(%d, %d, %d)", r, g, b)
-        brightness = 255 if (r or g or b) else 0
+        if brightness is None:
+            brightness = 255 if (r or g or b) else 0
+        # Snap to nearest valid timing value
+        if timing is not None:
+            timing = min(self.VALID_TIMINGS, key=lambda x: abs(x - timing))
         for base in self.led_bases:
+            if timing is not None:
+                self._write(base, "timing", timing)
             self._write(base, "red", r)
             self._write(base, "green", g)
             self._write(base, "blue", b)
             self._write(base, "brightness", brightness)
+            self._write(base, "mode", mode)
 
-    def _set_led_rgb(self, index: int, r: int, g: int, b: int):
-        """Set a single LED to a specific RGB color."""
-        if not self.enabled or index < 0 or index >= self.led_count:
-            return
-        base = self.led_bases[index]
-        self._write(base, "red", r)
-        self._write(base, "green", g)
-        self._write(base, "blue", b)
-        self._write(base, "brightness", 255 if (r or g or b) else 0)
+    def set_rgb(self, r: int, g: int, b: int):
+        """Set ALL LEDs to a static RGB color."""
+        logger.debug("LED rgb(%d, %d, %d)", r, g, b)
+        self._set_all(r, g, b, mode="static")
 
     def start_animation(self):
-        """Start a green-blue sweep animation in a background thread.
+        """Start a smooth fade animation using hardware mode.
 
-        A sine wave sweeps across the LED ring, smoothly transitioning
-        each LED between green and blue with a phase offset per position.
+        Uses the device's firmware-driven 'fade' mode with green+blue,
+        which is perfectly smooth (no software thread needed).
         """
         if not self.enabled:
             return
-        self._anim_stop = threading.Event()
-        self._anim_thread = threading.Thread(target=self._sweep_loop, daemon=True)
-        self._anim_thread.start()
-        logger.debug("LED sweep animation started")
+        logger.debug("LED fade animation started (hardware mode)")
+        self._set_all(0, 255, 180, mode="fade", timing=500)
 
     def stop_animation(self):
-        """Stop the sweep animation and turn off LEDs."""
-        if hasattr(self, "_anim_stop"):
-            self._anim_stop.set()
-        if hasattr(self, "_anim_thread"):
-            self._anim_thread.join(timeout=2)
+        """Stop hardware animation and turn off LEDs."""
         self.turn_off()
-        logger.debug("LED sweep animation stopped")
-
-    def _sweep_loop(self):
-        """Oscillating green-blue sweep across the LED ring."""
-        phase_spread = math.pi * 2 / self.led_count
-        step = 0
-        while not self._anim_stop.is_set():
-            phase = step * 0.15
-            for i in range(self.led_count):
-                # Sine wave blend: 0 = full green, 1 = full blue
-                t = (math.sin(phase + i * phase_spread) + 1.0) / 2.0
-                g = int(255 * (1.0 - t))
-                b = int(255 * t)
-                self._set_led_rgb(i, 0, g, b)
-            step += 1
-            self._anim_stop.wait(0.03)  # ~30fps
+        logger.debug("LED fade animation stopped")
 
     def set_green(self):
         """Green: listening / capturing audio (static)."""
@@ -124,8 +117,13 @@ class LEDManager:
         self.set_rgb(255, 0, 0)
 
     def turn_off(self):
-        """Turn LED off."""
-        self.set_rgb(0, 0, 0)
+        """Turn all LEDs off: clear triggers, stop animations, zero brightness."""
+        if not self.enabled:
+            return
+        for base in self.led_bases:
+            self._write(base, "trigger", "none")
+            self._write(base, "mode", "static")
+            self._write(base, "brightness", 0)
 
 
 def get_active_session(base_url: str) -> str | None:
