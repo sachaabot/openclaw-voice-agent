@@ -98,17 +98,39 @@ OPENCLAW_CONFIG=/path/to/config.yaml python3 openclaw_voice_agent.py
 
 ## Systemd Service
 
+Run the voice agent as a background service that survives SSH disconnects and auto-starts on boot.
+
+### Install
+
 ```bash
-# Install service
 sudo cp openclaw-voice-agent.service /etc/systemd/system/
 sudo systemctl daemon-reload
 sudo systemctl enable openclaw-voice-agent
 sudo systemctl start openclaw-voice-agent
+```
 
-# Management
-sudo systemctl status openclaw-voice-agent
+### Manage
+
+```bash
+sudo systemctl start openclaw-voice-agent    # Start
+sudo systemctl stop openclaw-voice-agent     # Stop
+sudo systemctl restart openclaw-voice-agent  # Restart (e.g. after code changes)
+sudo systemctl status openclaw-voice-agent   # Check if running
+```
+
+### Logs
+
+```bash
+journalctl -u openclaw-voice-agent -f        # Tail logs live
+journalctl -u openclaw-voice-agent -n 50     # Last 50 lines
+journalctl -u openclaw-voice-agent --since "5 min ago"  # Recent logs
+```
+
+### Disable
+
+```bash
 sudo systemctl stop openclaw-voice-agent
-journalctl -u openclaw-voice-agent -f   # View logs
+sudo systemctl disable openclaw-voice-agent  # Remove from auto-start
 ```
 
 ## OpenClaw Setup
