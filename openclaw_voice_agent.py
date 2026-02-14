@@ -320,20 +320,12 @@ class OpenClawClient:
     def send_message(self, text: str) -> str:
         """Send a message to OpenClaw via the `openclaw agent` CLI and return the response."""
         import subprocess
-        import json
 
-        cmd = [
-            "openclaw", "agent",
-            "--message", text,
-            "--json",
-            "--timeout", str(self.timeout),
-        ]
+        cmd = ["openclaw", "agent", "--message", text, "--agent", self.agent_id]
 
-        # Route to specific session or agent
+        # Route to specific session if set
         if self.session_id:
             cmd.extend(["--session-id", self.session_id])
-        else:
-            cmd.extend(["--agent", self.agent_id])
 
         logger.debug("Running: %s", " ".join(cmd))
 
@@ -351,26 +343,10 @@ class OpenClawClient:
                 # Try to extract useful text from stderr
                 return stderr or "Sorry, I couldn't process that."
 
-            # Parse JSON output
             stdout = result.stdout.strip()
             if not stdout:
                 return "No response received."
-
-            try:
-                data = json.loads(stdout)
-                # Extract the reply text from JSON response
-                reply = (
-                    data.get("reply")
-                    or data.get("response")
-                    or data.get("message")
-                    or data.get("text")
-                    or data.get("output")
-                    or str(data)
-                )
-                return reply
-            except json.JSONDecodeError:
-                # Not JSON, return raw output
-                return stdout
+            return stdout
 
         except subprocess.TimeoutExpired:
             logger.error("openclaw agent timed out after %ds", self.timeout)
