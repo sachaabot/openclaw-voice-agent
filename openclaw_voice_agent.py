@@ -204,27 +204,66 @@ class Transcriber:
 
 
 class OpenClawClient:
-    """Client for OpenClaw local session API."""
+    """Client for OpenClaw local gateway (webhook-based agent trigger)."""
 
     def __init__(self, config: dict):
         self.base_url = config["base_url"].rstrip("/")
-        self.session_key = config["session_key"]
+        self.session_key = config.get("session_key", "main")
         self.timeout = config.get("timeout", 30)
+        self.hook_token = config.get("hook_token", "")
 
     def send_message(self, text: str) -> str:
-        """Send a message to the OpenClaw session and return the response."""
-        # Use sessions_send API: POST to gateway with sessionKey in body
-        url = f"{self.base_url}/sessions/send"
-        headers = {"Content-Type": "application/json"}
-        payload = {
-            "sessionKey": self.session_key,
-            "message": text
+        """
+        Send a message to OpenClaw via the webhook endpoint.
+        
+        OpenClaw doesn't expose a direct REST API for sessions_send.
+        Instead, we use the /hooks/agent endpoint to trigger an agent run.
+        The agent runs and output is logged; for real response, use sessions_history.
+        
+        For simplicity, we enqueue the message and return a status message.
+        """
+        if not self.hook_token:
+            logger.warning("hook_token not set; falling back to CLI-based send")
+            return self._send_via_cli(text)
+
+        url = f"{self.base_url}/hooks/agent"
+        headers = {
+            "Content-Type": "application/json",
+            "Authorization": f"Bearer {self.hook_token}"
         }
-        resp = requests.post(url, json=payload, headers=headers, timeout=self.timeout)
-        resp.raise_for_status()
-        data = resp.json()
-        # Response might be in 'response', 'message', or 'text' depending on OpenClaw version
-        return data.get("response", data.get("message", data.get("text", str(data))))
+        payload = {
+            "message": text,
+            "sessionKey": self.session_key,
+            "wakeMode": "now",
+            "timeoutSeconds": self.timeout,
+            "deliver": False  # Don't announce back to a channel
+        }
+        try:
+            resp = requests.post(url, json=payload, headers=headers, timeout=self.timeout)
+            resp.raise_for_status()
+            data = resp.json()
+            logger.info("Message sent to OpenClaw: %s", data.get("runId"))
+            return "Message sent to OpenClaw session."
+        except requests.RequestException as e:
+            logger.error("Failed to send message via webhook: %s", e)
+            # Fallback to CLI
+            return self._send_via_cli(text)
+
+    def _send_via_cli(self, text: str) -> str:
+        """Fallback: use openclaw CLI to send message."""
+        try:
+            import subprocess
+            cmd = ["openclaw", "sessions_send", "--session-key", self.session_key, "--message", text]
+            result = subprocess.run(cmd, capture_output=True, text=True, timeout=self.timeout)
+            if result.returncode == 0:
+                logger.info("Message sent via CLI")
+                return "Message sent via OpenClaw CLI."
+            else:
+                logger.error("CLI send failed: %s", result.stderr)
+                return "Failed to send message (hook and CLI both unavailable)"
+        except Exception as e:
+            logger.error("CLI fallback failed: %s", e)
+            return "Failed to send message (hook and CLI both unavailable)"
 
 
 class TTSEngine:
