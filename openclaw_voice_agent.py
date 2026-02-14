@@ -168,14 +168,10 @@ class AudioManager:
         )
 
     def calibrate_noise_floor(self, stream, duration: float = 0.5) -> float:
-        """Measure ambient noise RMS over a short duration to auto-set silence threshold.
-        
-        Args:
-            stream: Active PyAudio input stream.
-            duration: Seconds to sample ambient noise.
+        """Measure ambient noise RMS over a short duration.
         
         Returns:
-            Recommended silence threshold (ambient RMS * multiplier).
+            Average ambient RMS (used to compute relative silence threshold).
         """
         chunks_per_second = self.sample_rate / self.frame_length
         num_chunks = int(duration * chunks_per_second)
@@ -187,19 +183,20 @@ class AudioManager:
             rms_values.append(rms)
 
         if not rms_values:
-            return self.silence_threshold
+            return 150.0  # fallback
 
         avg_rms = sum(rms_values) / len(rms_values)
         max_rms = max(rms_values)
-        # Set threshold just above ambient: max + 20% headroom
-        # Too high and speech won't clear it; too low and noise triggers silence
-        threshold = max(max_rms * 1.2, avg_rms * 1.5, 100)
-        logger.info("Noise calibration: avg_rms=%.0f max_rms=%.0f -> threshold=%.0f (config=%d)",
-                     avg_rms, max_rms, threshold, self.silence_threshold)
-        return threshold
+        logger.info("Noise calibration: avg_rms=%.0f max_rms=%.0f (samples=%d)",
+                     avg_rms, max_rms, len(rms_values))
+        return avg_rms
 
     def capture_speech(self, stream=None) -> bytes | None:
         """Record audio until silence detected or max duration reached. Returns WAV bytes.
+        
+        Uses a rolling average approach: speech is detected when RMS rises
+        significantly above the ambient noise floor. Silence is when RMS drops
+        back to near-ambient levels for silence_duration seconds.
         
         Args:
             stream: Optional existing PyAudio stream to reuse (avoids device conflicts).
@@ -209,12 +206,16 @@ class AudioManager:
         if own_stream:
             stream = self.open_input_stream()
 
-        # Auto-calibrate silence threshold from ambient noise
-        calibrated_threshold = self.calibrate_noise_floor(stream)
-        # Use the higher of configured and calibrated to avoid false triggers
-        effective_threshold = max(self.silence_threshold, calibrated_threshold)
-        logger.info("Using silence threshold: %d (config=%d, calibrated=%.0f)",
-                     effective_threshold, self.silence_threshold, calibrated_threshold)
+        # Calibrate ambient noise level
+        ambient_rms = self.calibrate_noise_floor(stream)
+        
+        # Silence threshold: ambient + small fixed offset
+        # From the logs: ambient ~148, speech ~240-264
+        # So we set threshold at ambient + 30 (enough to catch the drop-off)
+        silence_offset = max(ambient_rms * 0.15, 15)  # 15% above ambient or at least 15
+        effective_threshold = ambient_rms + silence_offset
+        logger.info("Silence detection: ambient=%.0f threshold=%.0f (ambient+%.0f)",
+                     ambient_rms, effective_threshold, silence_offset)
 
         frames = []
         silent_chunks = 0
@@ -223,7 +224,6 @@ class AudioManager:
         silence_chunks_needed = int(self.silence_duration * chunks_per_second)
 
         # Don't check for silence until min_capture_seconds elapsed
-        # This prevents cutting off users who pause briefly while thinking
         min_capture_chunks = int(self.min_capture_seconds * chunks_per_second)
 
         logger.info("Capturing speech (max %.0fs, silence after %.1fs of quiet, grace=%.1fs)...",
@@ -234,21 +234,21 @@ class AudioManager:
                 frames.append(mono_bytes)
                 rms = (sum(s * s for s in mono_samples) / len(mono_samples)) ** 0.5
 
-                # Log RMS every ~0.5s for debugging audio levels
+                # Log RMS every ~0.5s for debugging
                 if chunk_idx % max(1, int(chunks_per_second * 0.5)) == 0:
                     elapsed = chunk_idx / chunks_per_second
-                    logger.debug("t=%.1fs rms=%.0f threshold=%d silent_chunks=%d/%d",
+                    logger.debug("t=%.1fs rms=%.0f threshold=%.0f silent=%d/%d",
                                  elapsed, rms, effective_threshold,
                                  silent_chunks, silence_chunks_needed)
 
-                # Skip silence detection during minimum capture window
+                # Skip silence detection during grace period
                 if chunk_idx < min_capture_chunks:
                     continue
 
                 if rms < effective_threshold:
                     silent_chunks += 1
                     if silent_chunks >= silence_chunks_needed:
-                        logger.info("Silence detected after %.1fs (%.1fs of silence), stopping capture",
+                        logger.info("Silence detected after %.1fs (%.1fs of quiet), stopping",
                                     chunk_idx / chunks_per_second,
                                     silent_chunks / chunks_per_second)
                         break
