@@ -30,28 +30,24 @@ class LEDManager:
       /sys/class/leds/pamir:led{N}/blue
     """
 
-    def __init__(self, config: dict = None, led_index: int = 0):
-        self.led_index = led_index
+    def __init__(self, config: dict = None):
         self.enabled = True
+        self.led_count = 7  # PamirAI has LEDs 0-6
         
         if config and "led" in config:
             self.enabled = config["led"].get("enabled", True)
-            self.led_index = config["led"].get("index", led_index)
+            self.led_count = config["led"].get("count", 7)
         
-        self.led_base = f"/sys/class/leds/pamir:led{self.led_index}"
-        self.has_rgb = os.path.exists(f"{self.led_base}/red")
-        
-        logger.info("LEDManager: enabled=%s, base=%s, rgb=%s",
-                     self.enabled, self.led_base, self.has_rgb)
+        self.led_bases = [f"/sys/class/leds/pamir:led{i}" for i in range(self.led_count)]
+        logger.info("LEDManager: enabled=%s, leds=%d", self.enabled, self.led_count)
 
-    def _write(self, attr: str, value: int):
+    def _write(self, led_base: str, attr: str, value: int):
         """Write a value to an LED sysfs attribute."""
-        path = f"{self.led_base}/{attr}"
+        path = f"{led_base}/{attr}"
         try:
             with open(path, "w") as f:
                 f.write(str(value))
         except (IOError, OSError):
-            # Fallback to bash echo
             import subprocess
             subprocess.run(
                 ["bash", "-c", f"echo {value} > {path}"],
@@ -59,15 +55,16 @@ class LEDManager:
             )
 
     def set_rgb(self, r: int, g: int, b: int):
-        """Set LED to specific RGB color. Also sets brightness as master enable."""
+        """Set ALL LEDs to specific RGB color."""
         if not self.enabled:
             return
         logger.debug("LED rgb(%d, %d, %d)", r, g, b)
-        self._write("red", r)
-        self._write("green", g)
-        self._write("blue", b)
-        # brightness acts as master switch — must be non-zero to see color
-        self._write("brightness", 255 if (r or g or b) else 0)
+        brightness = 255 if (r or g or b) else 0
+        for base in self.led_bases:
+            self._write(base, "red", r)
+            self._write(base, "green", g)
+            self._write(base, "blue", b)
+            self._write(base, "brightness", brightness)
 
     def set_blue(self):
         """Blue: wake word detected, capturing audio."""

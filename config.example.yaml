@@ -68,12 +68,12 @@ tts:
 # Controls the status LED on the PamirAI device for user feedback
 led:
   enabled: true              # Enable LED feedback
-  index: 0                   # Which LED to use (0-6)
-                             # LED states:
-                             # - BLUE (200): Wake word detected, capturing audio
-                             # - GREEN (200): Processing, waiting for response
-                             # - RED (200): Error occurred
-                             # - OFF (0): Idle or complete
+  count: 7                   # Number of LEDs in strip (PamirAI has 7: led0-led6)
+                             # LED colors (full RGB strip):
+                             # - BLUE: Wake word detected, capturing audio
+                             # - GREEN: Processing, waiting for response
+                             # - RED: Error occurred
+                             # - OFF: Idle or complete
 
 # Logging
 logging:
