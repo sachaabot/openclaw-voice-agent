@@ -21,6 +21,68 @@ from openai import OpenAI
 logger = logging.getLogger("openclaw-voice-agent")
 
 
+class LEDManager:
+    """Control PamirAI LEDs via sysfs for user feedback."""
+
+    # LED states
+    OFF = 0
+    BLUE = 200
+    GREEN = 200
+    RED = 200
+
+    def __init__(self, config: dict = None, led_index: int = 0):
+        """Initialize LED manager.
+        
+        Args:
+            config: Optional config dict with 'led' settings
+            led_index: Which LED to control (0-6)
+        """
+        self.led_index = led_index
+        self.led_path = f"/sys/class/leds/pamir:led{led_index}/brightness"
+        self.enabled = True
+        self.current_color = self.OFF
+        
+        if config and "led" in config:
+            self.enabled = config["led"].get("enabled", True)
+            self.led_index = config["led"].get("index", led_index)
+            self.led_path = f"/sys/class/leds/pamir:led{self.led_index}/brightness"
+
+    def set_color(self, brightness: int) -> bool:
+        """Set LED brightness. Returns True if successful."""
+        if not self.enabled:
+            return True
+        
+        if not os.path.exists(self.led_path):
+            logger.warning("LED path not found: %s", self.led_path)
+            self.enabled = False
+            return False
+        
+        try:
+            with open(self.led_path, "w") as f:
+                f.write(str(brightness))
+            self.current_color = brightness
+            return True
+        except (IOError, OSError) as e:
+            logger.error("Failed to write to LED: %s", e)
+            return False
+
+    def set_blue(self):
+        """Turn LED blue (wake word detected, capturing audio)."""
+        self.set_color(self.BLUE)
+
+    def set_green(self):
+        """Turn LED green (processing, waiting for response)."""
+        self.set_color(self.GREEN)
+
+    def set_red(self):
+        """Turn LED red (error state)."""
+        self.set_color(self.RED)
+
+    def turn_off(self):
+        """Turn LED off."""
+        self.set_color(self.OFF)
+
+
 def get_active_session(base_url: str) -> str | None:
     """Query the local OpenClaw Gateway and return the most recent session key."""
     url = f"{base_url.rstrip('/')}/sessions"
@@ -323,6 +385,7 @@ class VoiceAgent:
         self.transcriber = Transcriber(config["whisper"])
         self.openclaw = OpenClawClient(config["openclaw"])
         self.tts = TTSEngine(config["tts"])
+        self.led = LEDManager(config)
 
         # Override audio frame_length to match Porcupine requirements
         self.audio.frame_length = self.detector.frame_length
@@ -344,11 +407,15 @@ class VoiceAgent:
                 keyword_index = self.detector.process(pcm_unpacked)
                 if keyword_index >= 0:
                     logger.info("Wake word detected!")
+                    self.led.set_blue()  # Turn on blue
                     stream.stop_stream()
                     try:
                         self._handle_interaction()
                     except Exception:
                         logger.exception("Error during interaction")
+                        self.led.set_red()  # Turn on red for error
+                    finally:
+                        self.led.turn_off()  # Turn off when done
                     stream.start_stream()
         finally:
             stream.stop_stream()
@@ -356,30 +423,35 @@ class VoiceAgent:
             self._cleanup()
 
     def _handle_interaction(self):
-        # 1. Capture speech
+        # 1. Capture speech (blue LED)
+        logger.info("Capturing speech...")
+        self.led.set_blue()  # Keep blue while capturing
         wav_data = self.audio.capture_speech()
         if not wav_data:
             logger.warning("No audio captured")
             return
 
-        # 2. Transcribe
+        # 2. Transcribe (still blue)
         logger.info("Transcribing...")
+        self.led.set_blue()
         text = self.transcriber.transcribe(wav_data)
         if not text:
             logger.warning("Empty transcription")
             return
         logger.info("Transcription: %s", text)
 
-        # 3. Send to OpenClaw
+        # 3. Send to OpenClaw (green LED - waiting for response)
         logger.info("Sending to OpenClaw...")
+        self.led.set_green()
         response = self.openclaw.send_message(text)
         logger.info("OpenClaw response: %s", response[:200])
 
-        # 4. Text-to-speech
+        # 4. Text-to-speech (still green)
         logger.info("Synthesizing speech...")
+        self.led.set_green()
         audio_data = self.tts.synthesize(response)
 
-        # 5. Play response
+        # 5. Play response (still green)
         logger.info("Playing response...")
         self.audio.play_audio(audio_data)
 

@@ -167,6 +167,27 @@ If webhooks are not enabled, the voice agent falls back to using the `openclaw` 
 - [GitHub](https://github.com/openclaw/openclaw)
 - [Webhooks](https://docs.openclaw.ai/automation/webhooks)
 
+## LED Feedback
+
+The voice agent uses the PamirAI device's onboard LED to provide visual feedback during operation:
+
+- **🔵 BLUE** - Wake word detected, listening for your voice
+- **🟢 GREEN** - Processing your speech, waiting for OpenClaw response
+- **🔴 RED** - Error occurred during processing
+- **⚫ OFF** - Idle or task complete
+
+The LED states help you understand what the device is doing without needing text output.
+
+### Customization
+
+Control LED behavior in `config.yaml`:
+
+```yaml
+led:
+  enabled: true    # Enable/disable LED feedback
+  index: 0         # Which LED to use (0-6 available on PamirAI)
+```
+
 ## Configuration
 
 See `config.example.yaml` for all options. Key settings:

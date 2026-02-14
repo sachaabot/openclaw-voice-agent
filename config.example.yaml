@@ -64,6 +64,17 @@ tts:
   piper:
     model_path: "/path/to/piper-model.onnx"
 
+# LED Feedback (PamirAI device)
+# Controls the status LED on the PamirAI device for user feedback
+led:
+  enabled: true              # Enable LED feedback
+  index: 0                   # Which LED to use (0-6)
+                             # LED states:
+                             # - BLUE (200): Wake word detected, capturing audio
+                             # - GREEN (200): Processing, waiting for response
+                             # - RED (200): Error occurred
+                             # - OFF (0): Idle or complete
+
 # Logging
 logging:
   level: "INFO"  # DEBUG, INFO, WARNING, ERROR
