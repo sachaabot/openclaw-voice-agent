@@ -62,6 +62,23 @@ class LEDManager:
                 f.write(str(brightness))
             self.current_color = brightness
             return True
+        except PermissionError:
+            # Fall back to sudo tee for sysfs writes
+            import subprocess
+            try:
+                subprocess.run(
+                    ["sudo", "-n", "tee", self.led_path],
+                    input=str(brightness).encode(),
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.DEVNULL,
+                    timeout=2,
+                )
+                self.current_color = brightness
+                return True
+            except Exception as e:
+                logger.error("Failed to write to LED (even with sudo): %s", e)
+                self.enabled = False
+                return False
         except (IOError, OSError) as e:
             logger.error("Failed to write to LED: %s", e)
             return False
@@ -166,9 +183,17 @@ class AudioManager:
             frames_per_buffer=self.frame_length,
         )
 
-    def capture_speech(self) -> bytes | None:
-        """Record audio until silence detected or max duration reached. Returns WAV bytes."""
-        stream = self.open_input_stream()
+    def capture_speech(self, stream=None) -> bytes | None:
+        """Record audio until silence detected or max duration reached. Returns WAV bytes.
+        
+        Args:
+            stream: Optional existing PyAudio stream to reuse (avoids device conflicts).
+                    If None, opens a new stream (and closes it when done).
+        """
+        own_stream = stream is None
+        if own_stream:
+            stream = self.open_input_stream()
+        
         frames = []
         silent_chunks = 0
         chunks_per_second = self.sample_rate / self.frame_length
@@ -189,8 +214,9 @@ class AudioManager:
                 else:
                     silent_chunks = 0
         finally:
-            stream.stop_stream()
-            stream.close()
+            if own_stream:
+                stream.stop_stream()
+                stream.close()
 
         if not frames:
             return None
@@ -424,25 +450,24 @@ class VoiceAgent:
                 if keyword_index >= 0:
                     logger.info("Wake word detected!")
                     self.led.set_blue()  # Turn on blue
-                    stream.stop_stream()
                     try:
-                        self._handle_interaction()
+                        self._handle_interaction(stream)
                     except Exception:
                         logger.exception("Error during interaction")
-                        self.led.set_red()  # Turn on red for error
+                        self.led.set_red()  # Red for error
+                        time.sleep(1)  # Show red briefly
                     finally:
                         self.led.turn_off()  # Turn off when done
-                    stream.start_stream()
         finally:
             stream.stop_stream()
             stream.close()
             self._cleanup()
 
-    def _handle_interaction(self):
-        # 1. Capture speech (blue LED)
+    def _handle_interaction(self, stream):
+        # 1. Capture speech using existing stream (blue LED)
         logger.info("Capturing speech...")
         self.led.set_blue()  # Keep blue while capturing
-        wav_data = self.audio.capture_speech()
+        wav_data = self.audio.capture_speech(stream=stream)
         if not wav_data:
             logger.warning("No audio captured")
             return
