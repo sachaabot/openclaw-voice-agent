@@ -230,36 +230,67 @@ class AudioManager:
         return buf.getvalue()
 
     def play_audio(self, audio_data: bytes):
-        """Play WAV or MP3 audio bytes on the speaker."""
-        # Write to temp file for playback
-        suffix = ".wav" if audio_data[:4] == b"RIFF" else ".mp3"
+        """Play WAV or MP3 audio bytes on the speaker using aplay."""
+        import subprocess
+
+        is_wav = audio_data[:4] == b"RIFF"
+        suffix = ".wav" if is_wav else ".mp3"
+
         with tempfile.NamedTemporaryFile(suffix=suffix, delete=False) as f:
             f.write(audio_data)
             tmp_path = f.name
-        try:
-            if suffix == ".wav":
-                self._play_wav(tmp_path)
-            else:
-                # Use mpg123 or ffplay for MP3
-                os.system(f"mpg123 -q {tmp_path} 2>/dev/null || ffplay -nodisp -autoexit {tmp_path} 2>/dev/null")
-        finally:
-            os.unlink(tmp_path)
 
-    def _play_wav(self, path: str):
-        with wave.open(path, "rb") as wf:
-            stream = self.pa.open(
-                format=self.pa.get_format_from_width(wf.getsampwidth()),
-                channels=wf.getnchannels(),
-                rate=wf.getframerate(),
-                output=True,
-            )
-            chunk = 1024
-            data = wf.readframes(chunk)
-            while data:
-                stream.write(data)
-                data = wf.readframes(chunk)
-            stream.stop_stream()
-            stream.close()
+        try:
+            if is_wav:
+                # Play WAV directly with aplay
+                subprocess.run(["aplay", "-D", "default", tmp_path],
+                               capture_output=True, timeout=30)
+            else:
+                # Convert MP3 to WAV first, then play
+                wav_path = tmp_path + ".wav"
+                # Try sox, then mpg123, then python fallback
+                converted = False
+
+                # Try sox
+                if not converted:
+                    try:
+                        result = subprocess.run(
+                            ["sox", tmp_path, "-r", "16000", "-c", "1", wav_path],
+                            capture_output=True, timeout=10)
+                        if result.returncode == 0:
+                            converted = True
+                    except FileNotFoundError:
+                        pass
+
+                # Try mpg123 decode
+                if not converted:
+                    try:
+                        result = subprocess.run(
+                            ["mpg123", "-w", wav_path, tmp_path],
+                            capture_output=True, timeout=10)
+                        if result.returncode == 0:
+                            converted = True
+                    except FileNotFoundError:
+                        pass
+
+                # Python fallback: use pydub if available, or raw play
+                if not converted:
+                    try:
+                        from pydub import AudioSegment
+                        audio = AudioSegment.from_mp3(tmp_path)
+                        audio.export(wav_path, format="wav")
+                        converted = True
+                    except ImportError:
+                        logger.error("Cannot play MP3: install sox, mpg123, or pydub")
+                        return
+
+                if converted and os.path.exists(wav_path):
+                    subprocess.run(["aplay", "-D", "default", wav_path],
+                                   capture_output=True, timeout=30)
+                    os.unlink(wav_path)
+        finally:
+            if os.path.exists(tmp_path):
+                os.unlink(tmp_path)
 
     def close(self):
         self.pa.terminate()
