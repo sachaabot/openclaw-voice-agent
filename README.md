@@ -79,6 +79,7 @@ See `config.example.yaml` for all options. Key settings:
 
 - `porcupine.access_key` - Free from [Picovoice Console](https://console.picovoice.ai/)
 - `whisper.api_key` - OpenAI API key
-- `openclaw.base_url` / `openclaw.api_key` / `openclaw.session_id` - Your OpenClaw session
+- `openclaw.base_url` - Local Gateway URL (default: `http://localhost:18789`)
+- `openclaw.session_key` - Get from `openclaw sessions list` (no API key needed—OpenClaw runs locally)
 - `tts.provider` - Choose `gtts`, `elevenlabs`, or `piper`
 - `audio.silence_threshold` - Adjust if it cuts off too early or waits too long

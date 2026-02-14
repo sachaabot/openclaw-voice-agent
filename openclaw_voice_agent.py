@@ -178,26 +178,27 @@ class Transcriber:
 
 
 class OpenClawClient:
-    """Client for OpenClaw session API."""
+    """Client for OpenClaw local session API."""
 
     def __init__(self, config: dict):
         self.base_url = config["base_url"].rstrip("/")
-        self.api_key = config["api_key"]
-        self.session_id = config["session_id"]
+        self.session_key = config["session_key"]
         self.timeout = config.get("timeout", 30)
 
     def send_message(self, text: str) -> str:
         """Send a message to the OpenClaw session and return the response."""
-        url = f"{self.base_url}/sessions/{self.session_id}/send"
-        headers = {
-            "Authorization": f"Bearer {self.api_key}",
-            "Content-Type": "application/json",
+        # Use sessions_send API: POST to gateway with sessionKey in body
+        url = f"{self.base_url}/sessions/send"
+        headers = {"Content-Type": "application/json"}
+        payload = {
+            "sessionKey": self.session_key,
+            "message": text
         }
-        payload = {"message": text}
         resp = requests.post(url, json=payload, headers=headers, timeout=self.timeout)
         resp.raise_for_status()
         data = resp.json()
-        return data.get("response", data.get("message", str(data)))
+        # Response might be in 'response', 'message', or 'text' depending on OpenClaw version
+        return data.get("response", data.get("message", data.get("text", str(data))))
 
 
 class TTSEngine:

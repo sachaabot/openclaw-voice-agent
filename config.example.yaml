@@ -28,11 +28,10 @@ whisper:
   model: "whisper-1"
   language: "en"
 
-# OpenClaw session API
+# OpenClaw local gateway (runs on your machine)
 openclaw:
-  base_url: "https://api.openclaw.com"
-  api_key: "YOUR_OPENCLAW_API_KEY"
-  session_id: "YOUR_SESSION_ID"
+  base_url: "http://localhost:18789"  # Default OpenClaw Gateway port
+  session_key: "YOUR_SESSION_KEY"  # Get from: openclaw sessions list
   timeout: 30
 
 # Text-to-speech
