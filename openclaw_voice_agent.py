@@ -54,7 +54,7 @@ class LEDManager:
         except (IOError, OSError):
             import subprocess
             subprocess.run(
-                ["bash", "-c", f"echo {value} > {path}"],
+                ["sudo", "bash", "-c", f"echo {value} > {path}"],
                 timeout=2, capture_output=True,
             )
 
@@ -93,20 +93,21 @@ class LEDManager:
         self._set_all(r, g, b, mode="static")
 
     def start_animation(self):
-        """Start a smooth fade animation using hardware mode.
+        """Start a smooth rainbow color cycle using kernel-driven animation mode.
 
-        Uses the device's firmware-driven 'fade' mode with green+blue,
-        which is perfectly smooth (no software thread needed).
+        Uses the SAM driver's 'rainbow' mode which cycles through all colors
+        (including green→cyan→blue) entirely in firmware — no CPU overhead,
+        no sudo, and perfectly smooth. Timing controls cycle speed.
         """
         if not self.enabled:
             return
-        logger.debug("LED fade animation started (hardware mode)")
-        self._set_all(0, 255, 180, mode="fade", timing=500)
+        logger.debug("LED rainbow animation started (mode)")
+        self._set_all(0, 0, 0, brightness=255, mode="rainbow", timing=500)
 
     def stop_animation(self):
-        """Stop hardware animation and turn off LEDs."""
+        """Stop animation and turn off LEDs."""
         self.turn_off()
-        logger.debug("LED fade animation stopped")
+        logger.debug("LED rainbow animation stopped")
 
     def set_green(self):
         """Green: listening / capturing audio (static)."""
@@ -593,23 +594,24 @@ class VoiceAgent:
             return
         logger.info("Transcription: %s", text)
 
-        # 3. Send to OpenClaw (animated green chase while waiting)
-        logger.info("Sending to OpenClaw...")
+        # 3-5. Start animation once and keep it running through the
+        #       entire response cycle (OpenClaw → TTS → playback) to
+        #       avoid flicker from repeated stop/start.
         self.led.start_animation()
+
+        # 3. Send to OpenClaw
+        logger.info("Sending to OpenClaw...")
         response = self.openclaw.send_message(text)
-        self.led.stop_animation()
         logger.info("OpenClaw response: %s", response[:200])
 
-        # 4. Text-to-speech (animated green chase while synthesizing)
+        # 4. Text-to-speech
         logger.info("Synthesizing speech...")
-        self.led.start_animation()
         audio_data = self.tts.synthesize(response)
-        self.led.stop_animation()
 
-        # 5. Play response (sweep animation continues)
+        # 5. Play response
         logger.info("Playing response...")
-        self.led.start_animation()
         self.audio.play_audio(audio_data)
+
         self.led.stop_animation()
         logger.info("Interaction complete.")
 
