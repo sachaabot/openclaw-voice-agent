@@ -49,6 +49,12 @@ openclaw:
   session_id: ""         # Optional: specific session ID (overrides agent_id)
                          # Get from: openclaw sessions --json
   timeout: 60            # Max seconds to wait for agent response
+  # Voice prompt: prepended to every message to guide concise, spoken responses.
+  # Set to "" to disable. Default (if omitted):
+  # "[Voice conversation] Respond in 1-2 short sentences. Be concise and
+  #  conversational -- this is spoken aloud, not read. No markdown, no bullet
+  #  points, no lists."
+  # voice_prompt: ""
 
 # Text-to-speech
 tts:

@@ -335,17 +335,26 @@ class Transcriber:
 class OpenClawClient:
     """Client for OpenClaw local gateway via CLI."""
 
+    DEFAULT_VOICE_PROMPT = (
+        "[Voice conversation] Respond in 1-2 short sentences. "
+        "Be concise and conversational -- this is spoken aloud, not read. "
+        "No markdown, no bullet points, no lists."
+    )
+
     def __init__(self, config: dict):
         self.base_url = config["base_url"].rstrip("/")
         self.session_id = config.get("session_id", "")
         self.agent_id = config.get("agent_id", "main")
         self.timeout = config.get("timeout", 60)
+        self.voice_prompt = config.get("voice_prompt", self.DEFAULT_VOICE_PROMPT)
 
     def send_message(self, text: str) -> str:
         """Send a message to OpenClaw via the `openclaw agent` CLI and return the response."""
         import subprocess
 
-        cmd = ["openclaw", "agent", "--message", text, "--agent", self.agent_id]
+        # Prepend voice prompt to guide concise, spoken-style responses
+        prefixed_text = f"{self.voice_prompt}\n\n{text}" if self.voice_prompt else text
+        cmd = ["openclaw", "agent", "--message", prefixed_text, "--agent", self.agent_id]
 
         # Route to specific session if set
         if self.session_id:
