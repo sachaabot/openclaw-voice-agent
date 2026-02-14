@@ -9,6 +9,7 @@ import signal
 import struct
 import sys
 import tempfile
+import threading
 import time
 import wave
 
@@ -66,9 +67,45 @@ class LEDManager:
             self._write(base, "blue", b)
             self._write(base, "brightness", brightness)
 
-    def set_blue(self):
-        """Blue: wake word detected, capturing audio."""
-        self.set_rgb(0, 0, 255)
+    def _set_single_led(self, index: int, r: int, g: int, b: int):
+        """Set a single LED to a specific RGB color."""
+        if not self.enabled or index < 0 or index >= self.led_count:
+            return
+        base = self.led_bases[index]
+        brightness = 255 if (r or g or b) else 0
+        self._write(base, "red", r)
+        self._write(base, "green", g)
+        self._write(base, "blue", b)
+        self._write(base, "brightness", brightness)
+
+    def start_animation(self):
+        """Start a green chase/spinner animation in a background thread."""
+        self._anim_stop = threading.Event()
+        self._anim_thread = threading.Thread(target=self._chase_loop, daemon=True)
+        self._anim_thread.start()
+
+    def stop_animation(self):
+        """Stop the chase animation and turn off LEDs."""
+        if hasattr(self, "_anim_stop"):
+            self._anim_stop.set()
+        if hasattr(self, "_anim_thread"):
+            self._anim_thread.join(timeout=2)
+        self.turn_off()
+
+    def _chase_loop(self):
+        """Light up one green LED at a time, cycling around the ring."""
+        idx = 0
+        while not self._anim_stop.is_set():
+            # Turn off all LEDs
+            for i in range(self.led_count):
+                self._set_single_led(i, 0, 0, 0)
+            # Light up current LED in green
+            self._set_single_led(idx, 0, 255, 0)
+            idx = (idx + 1) % self.led_count
+            self._anim_stop.wait(0.1)
+        # Clean up: turn off all
+        for i in range(self.led_count):
+            self._set_single_led(i, 0, 0, 0)
 
     def set_green(self):
         """Green: processing, waiting for response."""
@@ -518,7 +555,7 @@ class VoiceAgent:
                 keyword_index = self.detector.process(pcm_unpacked)
                 if keyword_index >= 0:
                     logger.info("Wake word detected!")
-                    self.led.set_blue()  # Turn on blue
+                    self.led.set_green()  # Turn on green
                     try:
                         self._handle_interaction(stream)
                     except Exception:
@@ -533,36 +570,39 @@ class VoiceAgent:
             self._cleanup()
 
     def _handle_interaction(self, stream):
-        # 1. Capture speech using existing stream (blue LED)
+        # 1. Capture speech (green LED)
         logger.info("Capturing speech...")
-        self.led.set_blue()  # Keep blue while capturing
+        self.led.set_green()
         wav_data = self.audio.capture_speech(stream=stream)
         if not wav_data:
             logger.warning("No audio captured")
             return
 
-        # 2. Transcribe (still blue)
+        # 2. Transcribe (still green)
         logger.info("Transcribing...")
-        self.led.set_blue()
+        self.led.set_green()
         text = self.transcriber.transcribe(wav_data)
         if not text:
             logger.warning("Empty transcription")
             return
         logger.info("Transcription: %s", text)
 
-        # 3. Send to OpenClaw (green LED - waiting for response)
+        # 3. Send to OpenClaw (animated green chase while waiting)
         logger.info("Sending to OpenClaw...")
-        self.led.set_green()
+        self.led.start_animation()
         response = self.openclaw.send_message(text)
+        self.led.stop_animation()
         logger.info("OpenClaw response: %s", response[:200])
 
-        # 4. Text-to-speech (still green)
+        # 4. Text-to-speech (animated green chase while synthesizing)
         logger.info("Synthesizing speech...")
-        self.led.set_green()
+        self.led.start_animation()
         audio_data = self.tts.synthesize(response)
+        self.led.stop_animation()
 
-        # 5. Play response (still green)
+        # 5. Play response (green LED)
         logger.info("Playing response...")
+        self.led.set_green()
         self.audio.play_audio(audio_data)
         logger.info("Interaction complete.")
 
