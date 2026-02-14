@@ -608,10 +608,11 @@ class VoiceAgent:
         audio_data = self.tts.synthesize(response)
         self.led.stop_animation()
 
-        # 5. Play response (green LED)
+        # 5. Play response (sweep animation continues)
         logger.info("Playing response...")
-        self.led.set_green()
+        self.led.start_animation()
         self.audio.play_audio(audio_data)
+        self.led.stop_animation()
         logger.info("Interaction complete.")
 
     def _handle_signal(self, signum, frame):
