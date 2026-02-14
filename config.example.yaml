@@ -30,8 +30,8 @@ audio:
   channels: 1            # Output channels (always mono for transcription)
   hw_channels: 2         # Hardware mic channels (PamirAI requires 2; set to 1 for USB mics)
   record_seconds: 5      # Max recording duration after wake word
-  silence_threshold: 500  # RMS threshold for silence detection
-  silence_duration: 1.5   # Seconds of silence before stopping capture
+  silence_threshold: 300  # RMS threshold for silence detection (lower = more sensitive)
+  silence_duration: 2.0   # Seconds of silence before stopping capture
 
 # Whisper transcription
 whisper:
