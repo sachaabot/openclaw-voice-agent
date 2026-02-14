@@ -9,6 +9,7 @@ User=distiller
 Group=distiller
 WorkingDirectory=/home/distiller/Projects/openclaw-voice-agent
 Environment=OPENCLAW_CONFIG=/home/distiller/Projects/openclaw-voice-agent/config.yaml
+Environment=PATH=/home/distiller/.nvm/versions/node/v24.13.0/bin:/usr/local/bin:/usr/bin:/bin
 ExecStart=/opt/distiller-sdk/.venv/bin/python3 /home/distiller/Projects/openclaw-voice-agent/openclaw_voice_agent.py
 Restart=on-failure
 RestartSec=5
