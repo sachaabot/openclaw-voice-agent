@@ -63,28 +63,14 @@ class LEDManager:
         
         logger.debug("Setting LED %s to %d", self.led_path, brightness)
         try:
-            with open(self.led_path, "w") as f:
-                f.write(str(brightness))
+            import subprocess
+            subprocess.run(
+                ["bash", "-c", f"echo {brightness} > {self.led_path}"],
+                timeout=2,
+            )
             self.current_color = brightness
             return True
-        except PermissionError:
-            # Fall back to sudo tee for sysfs writes
-            import subprocess
-            try:
-                subprocess.run(
-                    ["sudo", "-n", "tee", self.led_path],
-                    input=str(brightness).encode(),
-                    stdout=subprocess.DEVNULL,
-                    stderr=subprocess.DEVNULL,
-                    timeout=2,
-                )
-                self.current_color = brightness
-                return True
-            except Exception as e:
-                logger.error("Failed to write to LED (even with sudo): %s", e)
-                self.enabled = False
-                return False
-        except (IOError, OSError) as e:
+        except Exception as e:
             logger.error("Failed to write to LED: %s", e)
             return False
 
