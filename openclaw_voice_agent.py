@@ -131,6 +131,7 @@ class AudioManager:
         self.sample_rate = config["sample_rate"]
         self.frame_length = config["frame_length"]
         self.channels = config["channels"]
+        self.hw_channels = config.get("hw_channels", 2)  # PamirAI hardware requires stereo
         self.record_seconds = config["record_seconds"]
         self.silence_threshold = config["silence_threshold"]
         self.silence_duration = config["silence_duration"]
@@ -139,10 +140,27 @@ class AudioManager:
     def read_frames(self, stream, count: int) -> bytes:
         return stream.read(count, exception_on_overflow=False)
 
+    def read_mono_frames(self, stream, count: int) -> tuple[bytes, tuple]:
+        """Read frames from a (possibly stereo) stream and return mono PCM data.
+        
+        Returns:
+            (raw_mono_bytes, mono_samples_tuple)
+        """
+        raw = stream.read(count, exception_on_overflow=False)
+        if self.hw_channels <= 1:
+            samples = struct.unpack_from(f"<{count}h", raw)
+            return raw, samples
+
+        # Stereo: extract left channel only (every other sample)
+        stereo_samples = struct.unpack(f"<{count * self.hw_channels}h", raw)
+        mono_samples = stereo_samples[::self.hw_channels]
+        mono_bytes = struct.pack(f"<{len(mono_samples)}h", *mono_samples)
+        return mono_bytes, mono_samples
+
     def open_input_stream(self):
         return self.pa.open(
             rate=self.sample_rate,
-            channels=self.channels,
+            channels=self.hw_channels,
             format=pyaudio.paInt16,
             input=True,
             frames_per_buffer=self.frame_length,
@@ -160,10 +178,9 @@ class AudioManager:
         logger.info("Capturing speech...")
         try:
             for _ in range(max_chunks):
-                data = self.read_frames(stream, self.frame_length)
-                frames.append(data)
-                samples = struct.unpack_from(f"<{self.frame_length}h", data)
-                rms = (sum(s * s for s in samples) / len(samples)) ** 0.5
+                mono_bytes, mono_samples = self.read_mono_frames(stream, self.frame_length)
+                frames.append(mono_bytes)
+                rms = (sum(s * s for s in mono_samples) / len(mono_samples)) ** 0.5
                 if rms < self.silence_threshold:
                     silent_chunks += 1
                     if silent_chunks >= silence_chunks_needed:
@@ -180,7 +197,7 @@ class AudioManager:
 
         buf = io.BytesIO()
         with wave.open(buf, "wb") as wf:
-            wf.setnchannels(self.channels)
+            wf.setnchannels(1)  # Always mono for Whisper
             wf.setsampwidth(2)
             wf.setframerate(self.sample_rate)
             wf.writeframes(b"".join(frames))
@@ -401,8 +418,7 @@ class VoiceAgent:
 
         try:
             while self.running:
-                pcm = stream.read(self.detector.frame_length, exception_on_overflow=False)
-                pcm_unpacked = struct.unpack_from(f"<{self.detector.frame_length}h", pcm)
+                _mono_bytes, pcm_unpacked = self.audio.read_mono_frames(stream, self.detector.frame_length)
 
                 keyword_index = self.detector.process(pcm_unpacked)
                 if keyword_index >= 0:
