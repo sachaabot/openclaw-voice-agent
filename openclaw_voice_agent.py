@@ -9,7 +9,6 @@ import signal
 import struct
 import sys
 import tempfile
-import threading
 import time
 import wave
 
@@ -67,56 +66,57 @@ class LEDManager:
             self._write(base, "blue", b)
             self._write(base, "brightness", brightness)
 
-    def _set_single_led(self, index: int, r: int, g: int, b: int):
-        """Set a single LED to a specific RGB color."""
-        if not self.enabled or index < 0 or index >= self.led_count:
+    def _write_str(self, led_base: str, attr: str, value: str):
+        """Write a string value to an LED sysfs attribute (e.g. trigger)."""
+        path = f"{led_base}/{attr}"
+        try:
+            with open(path, "w") as f:
+                f.write(value)
+        except (IOError, OSError):
+            import subprocess
+            subprocess.run(
+                ["bash", "-c", f"echo {value} > {path}"],
+                timeout=2, capture_output=True,
+            )
+
+    def _set_trigger(self, trigger: str):
+        """Set the LED trigger for all LEDs (e.g. 'breathing-rgb', 'none')."""
+        if not self.enabled:
             return
-        base = self.led_bases[index]
-        brightness = 255 if (r or g or b) else 0
-        self._write(base, "red", r)
-        self._write(base, "green", g)
-        self._write(base, "blue", b)
-        self._write(base, "brightness", brightness)
+        logger.debug("LED trigger=%s", trigger)
+        for base in self.led_bases:
+            self._write_str(base, "trigger", trigger)
 
     def start_animation(self):
-        """Start a green chase/spinner animation in a background thread."""
-        self._anim_stop = threading.Event()
-        self._anim_thread = threading.Thread(target=self._chase_loop, daemon=True)
-        self._anim_thread.start()
+        """Start hardware breathing-rgb animation with green color."""
+        if not self.enabled:
+            return
+        logger.debug("LED start breathing animation")
+        for base in self.led_bases:
+            self._write(base, "red", 0)
+            self._write(base, "green", 255)
+            self._write(base, "blue", 0)
+            self._write(base, "brightness", 255)
+            self._write_str(base, "trigger", "breathing-rgb")
 
     def stop_animation(self):
-        """Stop the chase animation and turn off LEDs."""
-        if hasattr(self, "_anim_stop"):
-            self._anim_stop.set()
-        if hasattr(self, "_anim_thread"):
-            self._anim_thread.join(timeout=2)
+        """Stop hardware animation and turn off LEDs."""
+        self._set_trigger("none")
         self.turn_off()
 
-    def _chase_loop(self):
-        """Light up one green LED at a time, cycling around the ring."""
-        idx = 0
-        while not self._anim_stop.is_set():
-            # Turn off all LEDs
-            for i in range(self.led_count):
-                self._set_single_led(i, 0, 0, 0)
-            # Light up current LED in green
-            self._set_single_led(idx, 0, 255, 0)
-            idx = (idx + 1) % self.led_count
-            self._anim_stop.wait(0.1)
-        # Clean up: turn off all
-        for i in range(self.led_count):
-            self._set_single_led(i, 0, 0, 0)
-
     def set_green(self):
-        """Green: processing, waiting for response."""
+        """Green: listening / capturing audio (static)."""
+        self._set_trigger("none")
         self.set_rgb(0, 255, 0)
 
     def set_red(self):
         """Red: error state."""
+        self._set_trigger("none")
         self.set_rgb(255, 0, 0)
 
     def turn_off(self):
-        """Turn LED off."""
+        """Turn LED off and reset trigger to static."""
+        self._set_trigger("none")
         self.set_rgb(0, 0, 0)
 
 
