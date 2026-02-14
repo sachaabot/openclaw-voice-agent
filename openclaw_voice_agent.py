@@ -22,73 +22,66 @@ logger = logging.getLogger("openclaw-voice-agent")
 
 
 class LEDManager:
-    """Control PamirAI LEDs via sysfs for user feedback."""
-
-    # LED states
-    OFF = 0
-    BLUE = 200
-    GREEN = 200
-    RED = 200
+    """Control PamirAI RGB LEDs via sysfs for user feedback.
+    
+    PamirAI LEDs have separate red/green/blue channels:
+      /sys/class/leds/pamir:led{N}/red
+      /sys/class/leds/pamir:led{N}/green
+      /sys/class/leds/pamir:led{N}/blue
+    """
 
     def __init__(self, config: dict = None, led_index: int = 0):
-        """Initialize LED manager.
-        
-        Args:
-            config: Optional config dict with 'led' settings
-            led_index: Which LED to control (0-6)
-        """
         self.led_index = led_index
-        self.led_path = f"/sys/class/leds/pamir:led{led_index}/brightness"
         self.enabled = True
-        self.current_color = self.OFF
         
         if config and "led" in config:
             self.enabled = config["led"].get("enabled", True)
             self.led_index = config["led"].get("index", led_index)
-            self.led_path = f"/sys/class/leds/pamir:led{self.led_index}/brightness"
         
-        logger.info("LEDManager: enabled=%s, path=%s, exists=%s",
-                     self.enabled, self.led_path, os.path.exists(self.led_path))
+        self.led_base = f"/sys/class/leds/pamir:led{self.led_index}"
+        self.has_rgb = os.path.exists(f"{self.led_base}/red")
+        
+        logger.info("LEDManager: enabled=%s, base=%s, rgb=%s",
+                     self.enabled, self.led_base, self.has_rgb)
 
-    def set_color(self, brightness: int) -> bool:
-        """Set LED brightness. Returns True if successful."""
-        if not self.enabled:
-            logger.debug("LED disabled, skipping set_color(%d)", brightness)
-            return True
-        
-        if not os.path.exists(self.led_path):
-            logger.warning("LED path not found: %s", self.led_path)
-            self.enabled = False
-            return False
-        
-        logger.debug("Setting LED %s to %d", self.led_path, brightness)
+    def _write(self, attr: str, value: int):
+        """Write a value to an LED sysfs attribute."""
+        path = f"{self.led_base}/{attr}"
         try:
+            with open(path, "w") as f:
+                f.write(str(value))
+        except (IOError, OSError):
+            # Fallback to bash echo
             import subprocess
             subprocess.run(
-                ["bash", "-c", f"echo {brightness} > {self.led_path}"],
-                timeout=2,
+                ["bash", "-c", f"echo {value} > {path}"],
+                timeout=2, capture_output=True,
             )
-            self.current_color = brightness
-            return True
-        except Exception as e:
-            logger.error("Failed to write to LED: %s", e)
-            return False
+
+    def set_rgb(self, r: int, g: int, b: int):
+        """Set LED to specific RGB color."""
+        if not self.enabled:
+            return
+        logger.debug("LED rgb(%d, %d, %d)", r, g, b)
+        self._write("red", r)
+        self._write("green", g)
+        self._write("blue", b)
 
     def set_blue(self):
-        """Turn LED blue (wake word detected, capturing audio)."""
-        self.set_color(self.BLUE)
+        """Blue: wake word detected, capturing audio."""
+        self.set_rgb(0, 0, 255)
 
     def set_green(self):
-        """Turn LED green (processing, waiting for response)."""
-        self.set_color(self.GREEN)
+        """Green: processing, waiting for response."""
+        self.set_rgb(0, 255, 0)
 
     def set_red(self):
-        """Turn LED red (error state)."""
-        self.set_color(self.RED)
+        """Red: error state."""
+        self.set_rgb(255, 0, 0)
 
     def turn_off(self):
         """Turn LED off."""
-        self.set_color(self.OFF)
+        self.set_rgb(0, 0, 0)
 
 
 def get_active_session(base_url: str) -> str | None:
