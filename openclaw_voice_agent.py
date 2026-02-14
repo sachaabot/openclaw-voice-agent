@@ -21,6 +21,32 @@ from openai import OpenAI
 logger = logging.getLogger("openclaw-voice-agent")
 
 
+def get_active_session(base_url: str) -> str | None:
+    """Query the local OpenClaw Gateway and return the most recent session key."""
+    url = f"{base_url.rstrip('/')}/sessions"
+    try:
+        resp = requests.get(url, timeout=5)
+        resp.raise_for_status()
+        data = resp.json()
+    except (requests.RequestException, ValueError) as e:
+        logger.warning("Failed to fetch sessions from %s: %s", url, e)
+        return None
+
+    sessions = data if isinstance(data, list) else data.get("sessions", [])
+    if not sessions:
+        logger.warning("No active sessions found at %s", url)
+        return None
+
+    # Pick the most recently created session
+    sessions.sort(key=lambda s: s.get("createdAt", s.get("created_at", "")), reverse=True)
+    key = sessions[0].get("sessionKey") or sessions[0].get("session_key") or sessions[0].get("key")
+    if key:
+        logger.info("Auto-detected session: %s", key)
+    else:
+        logger.warning("Session found but no key field recognized: %s", sessions[0])
+    return key
+
+
 def load_config(path: str) -> dict:
     with open(path) as f:
         return yaml.safe_load(f)

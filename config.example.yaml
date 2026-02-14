@@ -39,9 +39,12 @@ whisper:
   language: "en"
 
 # OpenClaw local gateway (runs on your machine)
+# OpenClaw is a self-hosted Node.js gateway that connects to AI providers.
+# It does NOT require an OpenClaw API key; instead it uses your AI provider credentials.
+# See: https://docs.openclaw.ai
 openclaw:
   base_url: "http://localhost:18789"  # Default OpenClaw Gateway port
-  session_key: "YOUR_SESSION_KEY"  # Get from: openclaw sessions list
+  session_key: ""  # Leave empty to auto-detect; or get from: openclaw sessions list
   timeout: 30
 
 # Text-to-speech

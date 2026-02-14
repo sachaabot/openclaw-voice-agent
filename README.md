@@ -9,7 +9,8 @@ Wake-word activated voice interface for OpenClaw sessions on PamirAI devices.
 - Raspberry Pi CM5 (PamirAI Distiller)
 - Microphone and speaker connected
 - Python 3.10+ (Distiller SDK venv)
-- API keys: Picovoice (wake word), OpenAI (Whisper), OpenClaw
+- OpenClaw local gateway running (see below)
+- API keys: Picovoice (wake word), OpenAI (Whisper), AI provider for OpenClaw
 
 ## Setup
 
@@ -110,6 +111,38 @@ sudo systemctl stop openclaw-voice-agent
 journalctl -u openclaw-voice-agent -f   # View logs
 ```
 
+## OpenClaw Setup
+
+OpenClaw is a **local, self-hosted Node.js gateway** that connects chat platforms to AI agents. It does NOT require an OpenClaw API key; instead it uses your AI provider credentials (Anthropic, OpenAI, etc.).
+
+**Prerequisites:**
+- Node.js 22+
+- AI provider API key (Anthropic, OpenAI, etc.)
+
+**Start OpenClaw:**
+
+```bash
+# Install (if not already done)
+npm install -g openclaw
+
+# Configure with your AI provider key
+# Edit ~/.openclaw/openclaw.json with your credentials
+
+# Start the gateway
+openclaw gateway start
+
+# Verify it's running
+openclaw status
+# Should show: Gateway is running on http://localhost:18789
+
+# List available sessions
+openclaw sessions list
+```
+
+**Documentation:**
+- [OpenClaw Docs](https://docs.openclaw.ai)
+- [GitHub](https://github.com/openclaw/openclaw)
+
 ## Configuration
 
 See `config.example.yaml` for all options. Key settings:
@@ -117,6 +150,8 @@ See `config.example.yaml` for all options. Key settings:
 - `porcupine.access_key` - Free from [Picovoice Console](https://console.picovoice.ai/)
 - `whisper.api_key` - OpenAI API key
 - `openclaw.base_url` - Local Gateway URL (default: `http://localhost:18789`)
-- `openclaw.session_key` - Get from `openclaw sessions list` (no API key needed—OpenClaw runs locally)
+- `openclaw.session_key` - Leave empty to auto-detect, or set to a specific session key from `openclaw sessions list`
 - `tts.provider` - Choose `gtts`, `elevenlabs`, or `piper`
 - `audio.silence_threshold` - Adjust if it cuts off too early or waits too long
+
+**Important:** The voice agent does NOT need an OpenClaw API key. OpenClaw runs locally and uses your AI provider credentials (configured in `~/.openclaw/openclaw.json`).
