@@ -183,16 +183,26 @@ class AudioManager:
         max_chunks = int(self.record_seconds * chunks_per_second)
         silence_chunks_needed = int(self.silence_duration * chunks_per_second)
 
+        # Don't check for silence in the first 1.5 seconds (let user start speaking)
+        min_capture_seconds = 1.5
+        min_capture_chunks = int(min_capture_seconds * chunks_per_second)
+
         logger.info("Capturing speech...")
         try:
-            for _ in range(max_chunks):
+            for chunk_idx in range(max_chunks):
                 mono_bytes, mono_samples = self.read_mono_frames(stream, self.frame_length)
                 frames.append(mono_bytes)
                 rms = (sum(s * s for s in mono_samples) / len(mono_samples)) ** 0.5
+
+                # Skip silence detection during minimum capture window
+                if chunk_idx < min_capture_chunks:
+                    continue
+
                 if rms < self.silence_threshold:
                     silent_chunks += 1
                     if silent_chunks >= silence_chunks_needed:
-                        logger.debug("Silence detected, stopping capture")
+                        logger.debug("Silence detected after %.1fs, stopping capture",
+                                     chunk_idx / chunks_per_second)
                         break
                 else:
                     silent_chunks = 0
