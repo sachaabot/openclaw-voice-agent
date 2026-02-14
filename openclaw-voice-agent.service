@@ -20,7 +20,8 @@ SyslogIdentifier=openclaw-voice-agent
 # Hardening
 NoNewPrivileges=true
 ProtectSystem=strict
-ProtectHome=read-only
+ProtectHome=false
+ReadWritePaths=/home/distiller/.openclaw
 ReadWritePaths=/tmp
 PrivateTmp=true
 
