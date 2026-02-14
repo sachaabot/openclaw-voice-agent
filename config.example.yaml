@@ -1,15 +1,25 @@
 # OpenClaw Voice Agent Configuration
 
-# Porcupine wake word detection
+# Porcupine Wake Word Detection
+# Get free access key at: https://console.picovoice.ai/ (no credit card needed)
 porcupine:
-  access_key: "YOUR_PICOVOICE_ACCESS_KEY"
-  # Built-in keywords: "porcupine", "bumblebee", "terminator", etc.
-  # For custom "hey openclaw", train at https://console.picovoice.ai/
-  # Use keyword_paths for custom .ppn files, or keywords for built-in ones.
+  access_key: "YOUR_PICOVOICE_ACCESS_KEY"  # Free from https://console.picovoice.ai/
+  
+  # Option 1: Use built-in keywords (easier, works offline)
+  # Available: "porcupine", "bumblebee", "terminator", "americano", "blueberry", etc.
   keywords:
     - "terminator"
+  
+  # Option 2: Use a custom wake word (requires training, better UX)
+  # Steps:
+  #   1. Go to https://console.picovoice.ai/ and create a custom keyword
+  #   2. Train for your target platform (e.g., "Raspberry Pi (32-bit ARM)")
+  #   3. Download the .ppn file
+  #   4. Uncomment keyword_paths and set the path to your .ppn file
   # keyword_paths:
-  #   - "/path/to/hey-openclaw_en_raspberry-pi.ppn"
+  #   - "/home/distiller/Projects/openclaw-voice-agent/models/hey-openclaw_en_raspberry-pi.ppn"
+  
+  # Sensitivity: 0.0 to 1.0 (higher = more sensitive, catches quieter speech)
   sensitivities:
     - 0.6
 

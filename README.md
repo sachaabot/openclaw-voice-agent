@@ -25,19 +25,56 @@ cp config.example.yaml config.yaml
 # Edit config.yaml with your API keys and settings
 ```
 
-### Custom Wake Word
+### Porcupine Wake Word Setup
 
-The default config uses the built-in "terminator" keyword. To use a custom "hey openclaw" wake word:
+**Get Your Access Key (Free)**
+
+1. Visit [Picovoice Console](https://console.picovoice.ai/) and sign up (no credit card needed)
+2. Copy your **AccessKey** from the dashboard
+3. Set it in `config.yaml`:
+   ```yaml
+   porcupine:
+     access_key: "YOUR_PICOVOICE_ACCESS_KEY"
+   ```
+
+**Option 1: Built-in Keywords (Easiest)**
+
+Use one of the pre-trained keywords:
+- `"terminator"`, `"porcupine"`, `"bumblebee"`, `"americano"`, `"blueberry"`, and more
+
+Works offline and is ready to go:
+```yaml
+porcupine:
+  keywords:
+    - "terminator"
+  sensitivities:
+    - 0.6
+```
+
+**Option 2: Custom Wake Word (Better UX)**
+
+Train a custom wake word like "hey openclaw":
 
 1. Go to [Picovoice Console](https://console.picovoice.ai/)
-2. Train a custom keyword for Raspberry Pi
-3. Download the `.ppn` file
-4. Update `config.yaml`:
+2. Click **"Create Custom Keyword"**
+3. Enter your phrase (e.g., "hey openclaw")
+4. Select your platform: **Raspberry Pi (32-bit ARM)** (for PamirAI/CM5)
+5. Train the model (takes ~1 min)
+6. Download the `.ppn` file
+7. Copy it to your project directory (e.g., `models/hey-openclaw_en_raspberry-pi.ppn`)
+8. Update `config.yaml`:
    ```yaml
    porcupine:
      keyword_paths:
-       - "/path/to/hey-openclaw_en_raspberry-pi.ppn"
+       - "/home/distiller/Projects/openclaw-voice-agent/models/hey-openclaw_en_raspberry-pi.ppn"
    ```
+
+**Fine-tune Detection**
+
+Adjust sensitivity (0.0–1.0) if needed:
+- Higher = catches quieter speech but more false positives
+- Lower = requires louder/clearer speech
+- Default (0.6) works well for most cases
 
 ### TTS Providers
 
