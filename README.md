@@ -1,5 +1,9 @@
 # OpenClaw Voice Agent
 
+<p align="center">
+  <img src="images/pamirai-openclaw.jpeg" alt="OpenClaw Voice Agent on Distiller" width="600" />
+</p>
+
 Wake-word activated voice interface for OpenClaw sessions on PamirAI devices.
 
 **Flow:** Listen for wake word → Capture speech → Transcribe with Whisper → Send to OpenClaw → Speak response
