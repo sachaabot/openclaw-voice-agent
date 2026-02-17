@@ -8,7 +8,7 @@ porcupine:
   # Option 1: Use built-in keywords (easier, works offline)
   # Available: "porcupine", "bumblebee", "terminator", "americano", "blueberry", etc.
   keywords:
-    - "terminator"
+    - "jarvis"
   
   # Option 2: Use a custom wake word (requires training, better UX)
   # Steps:

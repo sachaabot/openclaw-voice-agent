@@ -47,7 +47,7 @@ Works offline and is ready to go:
 ```yaml
 porcupine:
   keywords:
-    - "terminator"
+    - "jarvis"
   sensitivities:
     - 0.6
 ```
